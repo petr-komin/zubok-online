@@ -4,7 +4,7 @@ Webová aplikace pro generování CNC G-code pro frézování **box-joint (prsto
 
 Přepis původního Ruby skriptu do moderního Node.js/Vue 3 stacku s 3D vizualizací dráhy frézy.
 
-![screenshot](https://via.placeholder.com/900x500/111827/ffffff?text=Zubok+Online)
+![screenshot](screenshot.png)
 
 ## Funkce
 
