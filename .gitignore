@@ -4,3 +4,4 @@ client/dist/
 *.nc
 .DS_Store
 examples/
+.idea/
