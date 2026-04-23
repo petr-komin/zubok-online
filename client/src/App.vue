@@ -49,6 +49,10 @@
         </div>
       </section>
     </main>
+
+    <footer class="app-footer">
+      <a href="https://github.com/petr-komin/zubok-online" target="_blank" rel="noopener">github.com/petr-komin/zubok-online</a>
+    </footer>
   </div>
 </template>
 
@@ -254,5 +258,21 @@ body { min-height: 100vh; }
     flex: 1;
     min-height: 320px;
   }
+}
+
+.app-footer {
+  text-align: center;
+  padding: 0.4rem;
+  font-size: 0.7rem;
+}
+
+.app-footer a {
+  color: #999;
+  text-decoration: none;
+}
+
+.app-footer a:hover {
+  color: #666;
+  text-decoration: underline;
 }
 </style>
