@@ -89,3 +89,7 @@ zubok-online/
 ## Licence
 
 MIT
+
+## Plány do budoucna
+
+- **Ukládání projektů do databáze** — parametry i vygenerované G-code soubory budou ukládány na serveru, což umožní historii projektů, sdílení a opětovné načtení. Toto je hlavní důvod pro zvolenou client-server architekturu.
