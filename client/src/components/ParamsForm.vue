@@ -10,6 +10,7 @@
             :type="field.type ?? 'number'"
             :step="field.step ?? 'any'"
             :min="field.min ?? 0"
+            :max="field.max"
             :placeholder="field.placeholder"
             required
           />
@@ -135,6 +136,8 @@ const fields = [
     label: 'Drvení',
     unit: 'mm',
     step: 0.01,
+    min: -1,
+    max: 1,
     placeholder: '0',
     hint: 'Kladná hodnota = drážka užší (těsnější spoj), záporná = drážka širší (volnější spoj)',
   },

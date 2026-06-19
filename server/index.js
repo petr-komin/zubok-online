@@ -53,7 +53,7 @@ const PARAM_RULES = {
   hloubka_zubu:   { min: 0.1,  max: 200  },
   freza:          { min: 0.1,  max: 100  },
   krok_vnoreni:   { min: 0.01, max: 50   },
-  drveni:         { min: -20,  max: 20   },
+  drveni:         { min: -1,   max: 1    },
 };
 
 function validateParams(body) {

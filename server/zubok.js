@@ -58,7 +58,7 @@ class Zubok {
     this.d              = parseFloat(config.freza)           || 4.0;
     this.r              = this.d / 2;
     this.krok_vnoreni   = parseFloat(config.krok_vnoreni)   || 1.0;
-    this.drveni         = parseFloat(config.drveni)         || 0.1;
+    this.drveni         = Number.isNaN(parseFloat(config.drveni)) ? 0 : parseFloat(config.drveni);
     this.fn             = sanitizeFilename(this.nazev);
   }
 
