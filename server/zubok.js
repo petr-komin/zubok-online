@@ -157,14 +157,16 @@ class Zubok {
     this._wr(`G00 X${fmt(x + this.d + leve_drveni)} Y0 Z4`);
     this._move(x + this.d + leve_drveni, 0, 4, true);
 
+    // tolerance proti hromadění chyby u desetinného kroku (běžný případ)
+    const eps = 1e-9;
     let z = -this.krok_vnoreni;
-    while (z > -this.hloubka_zubu) {
+    while (z > -this.hloubka_zubu + eps) {
       this._vrstva(x, z, leve_drveni);
       z -= this.krok_vnoreni;
     }
-    if (z < -this.hloubka_zubu) {
-      this._vrstva(x, -this.hloubka_zubu, leve_drveni);
-    }
+    // poslední vrstvu vždy dofrézovat přesně na plnou hloubku
+    // (cyklus nikdy nedojede přesně na -hloubka_zubu; eps brání duplicitní vrstvě)
+    this._vrstva(x, -this.hloubka_zubu, leve_drveni);
 
     this._wr('G00 Z4');
     this._move(this._cx, this._cy, 4, true);
