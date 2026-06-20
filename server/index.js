@@ -54,6 +54,7 @@ const PARAM_RULES = {
   freza:          { min: 0.1,  max: 100  },
   krok_vnoreni:   { min: 0.01, max: 50   },
   drveni:         { min: -1,   max: 1    },
+  posuv:          { min: 1,    max: 10000 },
 };
 
 function validateParams(body) {

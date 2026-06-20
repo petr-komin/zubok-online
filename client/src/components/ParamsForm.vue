@@ -53,6 +53,7 @@ const defaults = {
   freza:          4,
   krok_vnoreni:   1,
   drveni:         0,
+  posuv:          300,
 };
 
 const localParams = reactive({ ...(props.modelValue ?? defaults) });
@@ -140,6 +141,15 @@ const fields = [
     max: 1,
     placeholder: '0',
     hint: 'Kladná hodnota = drážka užší (těsnější spoj), záporná = drážka širší (volnější spoj)',
+  },
+  {
+    key: 'posuv',
+    label: 'Rychlost posuvu',
+    unit: 'mm/min',
+    step: 1,
+    min: 1,
+    placeholder: '300',
+    hint: 'Posuv frézy (F v G-code)',
   },
 ];
 </script>

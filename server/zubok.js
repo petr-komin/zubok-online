@@ -47,6 +47,7 @@ class Zubok {
    * @param {number} config.freza
    * @param {number} config.krok_vnoreni
    * @param {number} config.drveni
+   * @param {number} config.posuv
    */
   constructor(config) {
     this.nazev          = config.nazev          ?? 'output';
@@ -59,6 +60,7 @@ class Zubok {
     this.r              = this.d / 2;
     this.krok_vnoreni   = parseFloat(config.krok_vnoreni)   || 1.0;
     this.drveni         = Number.isNaN(parseFloat(config.drveni)) ? 0 : parseFloat(config.drveni);
+    this.posuv          = parseFloat(config.posuv)          || 300;
     this.fn             = sanitizeFilename(this.nazev);
   }
 
@@ -83,9 +85,10 @@ class Zubok {
     this._wr(`(hloubka zubu ${this.hloubka_zubu})`);
     this._wr(`(freza ${this.d})`);
     this._wr(`(krok vnoreni ${this.krok_vnoreni})`);
+    this._wr(`(posuv ${this.posuv})`);
     this._wr('');
     this._wr('G90');
-    this._wr('M03 S24000 F300     (spuštění pravých otáček vřetene)');
+    this._wr(`M03 S24000 F${this.posuv}     (spuštění pravých otáček vřetene)`);
 
     let n = 0;
     while (true) {
