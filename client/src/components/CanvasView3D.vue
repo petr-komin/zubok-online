@@ -29,7 +29,10 @@
         <span class="anim-pct">{{ animPct }}%</span>
       </div>
 
-      <button class="btn-reset" @click="resetCamera" title="Reset pohledu">&#8635; Reset</button>
+      <div class="view-buttons">
+        <button class="btn-reset" @click="celniPohled" title="Pohled z čela — na profil spoje">&#9612;&#9616; Čelo</button>
+        <button class="btn-reset" @click="resetCamera" title="Reset pohledu">&#8635; Reset</button>
+      </div>
     </div>
 
     <!-- Canvas -->
@@ -60,6 +63,11 @@ const COLOR_RAPID   = 0x556070;
 const COLOR_BOARD   = 0x8B6914;
 const COLOR_DRILL_A = 0xfcd34d;
 const COLOR_DRILL_B = 0x93c5fd;
+const FOV_3D   = 45;   // běžný prostorový pohled
+const FOV_CELO = 12;   // čelní pohled na řez — skoro ortogonální
+
+const COLOR_PROFIL_A = 0x4ade80;
+const COLOR_PROFIL_B = 0xe879f9;
 
 const trackOptions = [
   { value: 'a',    label: 'Dráha A', dotColor: '#f59e0b' },
@@ -83,8 +91,10 @@ const animPct = computed(() =>
 let renderer, scene, camera, controls;
 let lineA = null, lineB = null;
 let boardGroup  = null;
+let grid        = null;
 let drillMeshA  = null, drillMeshB = null;
 let animId;
+let resizeObserver = null;
 let animFrameCount = 0;
 const ANIM_SPEED        = 1;  // bodů za krok
 const FRAMES_PER_STEP   = 4;  // framů mezi kroky (~60fps → ~15 kroků/s)
@@ -106,7 +116,7 @@ function initScene() {
   el.appendChild(renderer.domElement);
 
   scene  = new THREE.Scene();
-  camera = new THREE.PerspectiveCamera(45, el.clientWidth / el.clientHeight, 0.1, 5000);
+  camera = new THREE.PerspectiveCamera(FOV_3D, el.clientWidth / el.clientHeight, 0.1, 5000);
   camera.position.set(60, 50, 80);
 
   controls = new OrbitControls(camera, renderer.domElement);
@@ -171,9 +181,16 @@ function buildAxes() {
   }
 
   // Grid v rovině Y=0 (povrch prkna)
-  const grid = new THREE.GridHelper(300, 30, 0x1e3a4a, 0x162330);
+  grid = new THREE.GridHelper(300, 30, 0x1e3a4a, 0x162330);
   grid.position.set(60, 0, -15);
   scene.add(grid);
+}
+
+/** Posune grid pod aktuální prkno */
+function placeGrid() {
+  const b = props.meta?.board;
+  if (!grid || !b) return;
+  grid.position.set((b.x0 + b.x1) / 2, 0, -(b.y0 + b.y1) / 2);
 }
 
 function makeTextSprite(text, hexColor) {
@@ -192,6 +209,7 @@ function makeTextSprite(text, hexColor) {
 
 // ── Rebuild všeho při změně dat ───────────────────────────────────
 function rebuildScene() {
+  placeGrid();
   rebuildBoard();
   rebuildLines();
   rebuildDrills();
@@ -204,28 +222,20 @@ function rebuildScene() {
 
 // ── Prkno ─────────────────────────────────────────────────────────
 //
-// Souřadnicový systém G-code:
-//   Nulový bod = místo kde se dotýká OKRAJ frézy (ne roh materiálu)
-//   Materiál tedy začíná na X = r (poloměr frézy)
-//       a končí na X = sirka_prkna + r
-//   V ose Y: materiál od Y=0 do Y=tloustka_prkna
-//   V ose Z: povrch je Z=0, frézuje se do záporných hodnot
-//
-// Three.js pozice prkna:
-//   střed X = r + sirka_prkna/2
-//   střed Y (Three) = -hloubka_zubu/2   (frézuje se dolů, do záporného Y)
-//   střed Z (Three) = -(r + tloustka_prkna/2)  (materiál začíná za poloměrem frézy)
+// Rozměry kvádru posílá server v meta.board jako rozsah v souřadnicích
+// G-code: { x0, x1, y0, y1, z0, z1 }. Povrch materiálu je Z=0, frézuje se
+// do záporných Z. Převod do Three.js dělá toVec().
 //
 function rebuildBoard() {
   if (boardGroup) { scene.remove(boardGroup); boardGroup = null; }
 
-  const m  = props.meta;
-  if (!m || !m.sirka_prkna) return;
+  const b = props.meta?.board;
+  if (!b) return;
 
-  const r   = m.r              || (m.freza / 2) || 2;
-  const sw  = m.sirka_prkna;
-  const th  = m.tloustka_prkna;
-  const dep = m.hloubka_zubu;
+  const sw  = b.x1 - b.x0;   // délka (osa X)
+  const th  = b.y1 - b.y0;   // hloubka scény (osa Y G-code)
+  const dep = b.z1 - b.z0;   // výška (osa Z G-code)
+  if (!(sw > 0 && th > 0 && dep > 0)) return;
 
   boardGroup = new THREE.Group();
 
@@ -236,8 +246,8 @@ function rebuildBoard() {
     depthWrite: false, side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(geo, mat);
-  // Three.z = -gcode.Y → materiál začíná na gcode Y=r, tedy Three.z = -r
-  mesh.position.set(r + sw / 2, -dep / 2, -(r + th / 2));
+  // Three.y = gcode.Z, Three.z = -gcode.Y
+  mesh.position.set(b.x0 + sw / 2, b.z0 + dep / 2, -(b.y0 + th / 2));
   boardGroup.add(mesh);
 
   // Wireframe
@@ -284,11 +294,56 @@ function buildPathLines(paths, cutColor) {
   return group;
 }
 
+// ── Cílový profil spoje ───────────────────────────────────────────
+// Server může poslat obrys řezu hotovým prknem (meta.profil_a / _b) jako
+// lomenou čáru v rovině (Y, Z). Vykreslíme ji na obou koncích spoje
+// a propojíme, aby byl schodový tvar hned vidět.
+function buildProfile(profil, color) {
+  const b = props.meta?.board;
+  if (!profil || profil.length < 2 || !b) return null;
+
+  const group = new THREE.Group();
+  const mat   = new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 });
+
+  // Vyplněný řez zbylým materiálem na obou koncích spoje.
+  // Shape je v rovině (X=gcode Y, Y=gcode Z), otočením kolem osy Y
+  // se dostane do roviny kolmé na osu X.
+  const shape    = new THREE.Shape(profil.map(p => new THREE.Vector2(p.y, p.z)));
+  const shapeGeo = new THREE.ShapeGeometry(shape);
+  const shapeMat = new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity: 0.22,
+    depthWrite: false, side: THREE.DoubleSide,
+  });
+
+  for (const x of [b.x0, b.x1]) {
+    const pts = profil.map(p => new THREE.Vector3(x, p.z, -p.y));
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), mat));
+
+    const rez = new THREE.Mesh(shapeGeo, shapeMat);
+    rez.rotation.y = Math.PI / 2;
+    rez.position.x = x;
+    group.add(rez);
+  }
+
+  const spojnice = [];
+  for (const p of profil) {
+    spojnice.push(new THREE.Vector3(b.x0, p.z, -p.y), new THREE.Vector3(b.x1, p.z, -p.y));
+  }
+  group.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(spojnice), mat));
+  return group;
+}
+
 function rebuildLines() {
   if (lineA) { scene.remove(lineA); lineA = null; }
   if (lineB) { scene.remove(lineB); lineB = null; }
   lineA = buildPathLines(props.pathsA, COLOR_A);
   lineB = buildPathLines(props.pathsB, COLOR_B);
+
+  const profA = buildProfile(props.meta?.profil_a, COLOR_PROFIL_A);
+  const profB = buildProfile(props.meta?.profil_b, COLOR_PROFIL_B);
+  if (profA) lineA.add(profA);
+  if (profB) lineB.add(profB);
+
   scene.add(lineA);
   scene.add(lineB);
 }
@@ -393,6 +448,9 @@ function autoCenterCamera() {
   const allPts = [...props.pathsA, ...props.pathsB];
   if (!allPts.length) return;
 
+  camera.fov = FOV_3D;
+  camera.updateProjectionMatrix();
+
   const xs   = allPts.map(p => p.x);
   const ys   = allPts.map(p => p.y);
   const zs   = allPts.map(p => p.z);
@@ -415,15 +473,43 @@ function resetCamera() {
   autoCenterCamera();
 }
 
+/**
+ * Pohled zepředu podél osy X — na řez spojem.
+ * Používá úzký zorný úhel (teleobjektiv): perspektiva jinak rozhodí dráhu
+ * po celé délce spoje do vějíře přes profil.
+ */
+function celniPohled() {
+  const b = props.meta?.board;
+  if (!b) return;
+
+  const cy   = (b.y0 + b.y1) / 2;
+  const cz   = (b.z0 + b.z1) / 2;
+  const span = Math.max((b.y1 - b.y0) / camera.aspect, b.z1 - b.z0, 10);
+
+  camera.fov = FOV_CELO;
+  camera.updateProjectionMatrix();
+
+  // přesně v ose X, aby se řez promítl bez zkreslení
+  const dist = (span / 2) / Math.tan((FOV_CELO / 2) * Math.PI / 180) * 1.2;
+  controls.target.set(b.x0, cz, -cy);
+  camera.position.set(b.x0 - dist, cz, -cy);
+  controls.update();
+}
+
 // ── Lifecycle ─────────────────────────────────────────────────────
 onMounted(() => {
   initScene();
   window.addEventListener('resize', resize);
+  // Panel se po vygenerování rozjíždí CSS přechodem — samotné window resize
+  // by rozměry změřilo dřív, než je layout hotový, a scéna by zůstala zkreslená
+  resizeObserver = new ResizeObserver(resize);
+  resizeObserver.observe(containerRef.value);
 });
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(animId);
   window.removeEventListener('resize', resize);
+  resizeObserver?.disconnect();
   renderer.dispose();
 });
 
@@ -526,6 +612,12 @@ watch(() => [props.pathsA, props.pathsB], () => {
   color: #668;
   width: 34px;
   text-align: right;
+  flex-shrink: 0;
+}
+
+.view-buttons {
+  display: flex;
+  gap: 0.35rem;
   flex-shrink: 0;
 }
 

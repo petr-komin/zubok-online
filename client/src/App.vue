@@ -1,7 +1,20 @@
 <template>
   <div class="app">
     <header class="app-header">
-      <h1>Zubok <span class="subtitle">— generátor G-code pro box-joint</span></h1>
+      <h1>Zubok <span class="subtitle">— generátor G-code pro dřevěné spoje</span></h1>
+
+      <nav class="gen-tabs">
+        <button
+          v-for="g in GENERATORY"
+          :key="g.key"
+          type="button"
+          :class="['gen-tab', { active: g.key === gen.key }]"
+          @click="prepni(g)"
+        >
+          {{ g.label }}
+          <small>{{ g.popis }}</small>
+        </button>
+      </nav>
     </header>
 
     <main class="app-main" :class="{ 'has-result': !!result }">
@@ -9,12 +22,16 @@
       <section class="panel panel-form">
         <div class="card">
           <div class="card-toolbar">
-            <h2>Parametry</h2>
+            <h2>Parametry — {{ gen.popis }}</h2>
             <FileUpload @loaded="onYmlLoaded" />
           </div>
 
           <ParamsForm
-            v-model="params"
+            :key="gen.key"
+            v-model="stav[gen.key].params"
+            :fields="gen.fields"
+            :defaults="gen.defaults"
+            :info="gen.info"
             :loading="loading"
             @submit="generate"
           >
@@ -40,6 +57,7 @@
       <section class="panel panel-viewer" :class="{ visible: !!result }">
         <CanvasView3D
           v-if="result"
+          :key="gen.key"
           :paths-a="result.paths_a"
           :paths-b="result.paths_b"
           :meta="result.meta"
@@ -57,26 +75,39 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, reactive, computed } from 'vue';
 import axios from 'axios';
 import ParamsForm    from './components/ParamsForm.vue';
 import FileUpload    from './components/FileUpload.vue';
 import CanvasView3D  from './components/CanvasView3D.vue';
+import { GENERATORY } from './generators';
 
-const params   = ref(null);
-const loading  = ref(false);
-const apiError = ref('');
-const result   = ref(null);
+const gen     = ref(GENERATORY[0]);
+const loading = ref(false);
+
+// Stav si držíme zvlášť pro každý generátor, aby přepnutí záložky
+// nezahodilo rozpracované parametry ani vygenerovaný výsledek
+const stav = reactive(
+  Object.fromEntries(GENERATORY.map(g => [g.key, { params: null, result: null, error: '' }])),
+);
+
+const result   = computed(() => stav[gen.value.key].result);
+const apiError = computed(() => stav[gen.value.key].error);
+
+function prepni(g) {
+  gen.value = g;
+}
 
 async function generate(formParams) {
-  loading.value  = true;
-  apiError.value = '';
-  result.value   = null;
+  const s = stav[gen.value.key];
+  loading.value = true;
+  s.error  = '';
+  s.result = null;
   try {
-    const { data } = await axios.post('/api/generate', formParams);
-    result.value = data;
+    const { data } = await axios.post(gen.value.endpoint, formParams);
+    s.result = data;
   } catch (err) {
-    apiError.value = err.response?.data?.error ?? err.message;
+    s.error = err.response?.data?.error ?? err.message;
   } finally {
     loading.value = false;
   }
@@ -94,9 +125,10 @@ function downloadA() { result.value && downloadFile(result.value.gcode_a, `${res
 function downloadB() { result.value && downloadFile(result.value.gcode_b, `${result.value.fn}_b.nc`); }
 
 function onYmlLoaded(parsed) {
-  params.value   = { ...parsed };
-  result.value   = null;
-  apiError.value = '';
+  const s  = stav[gen.value.key];
+  s.params = { ...gen.value.defaults, ...parsed };
+  s.result = null;
+  s.error  = '';
 }
 </script>
 
@@ -128,7 +160,7 @@ body { min-height: 100vh; }
 .app-header {
   background: #1e2b3c;
   color: #fff;
-  padding: 0.75rem 1.5rem;
+  padding: 0.75rem 1.5rem 0;
   flex-shrink: 0;
   z-index: 10;
 }
@@ -143,6 +175,44 @@ body { min-height: 100vh; }
   font-size: 0.88rem;
   font-weight: 400;
   opacity: 0.6;
+}
+
+/* ─── Záložky generátorů ─── */
+.gen-tabs {
+  display: flex;
+  gap: 0.4rem;
+  margin-top: 0.6rem;
+}
+
+.gen-tab {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  line-height: 1.25;
+  padding: 0.35rem 0.9rem;
+  border: 1.5px solid #33445c;
+  border-radius: 7px 7px 0 0;
+  border-bottom: none;
+  background: #16212f;
+  color: #8fa3bd;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.gen-tab small {
+  font-size: 0.68rem;
+  font-weight: 400;
+  opacity: 0.7;
+}
+
+.gen-tab:hover  { color: #dbe6f2; border-color: var(--color-accent); }
+.gen-tab.active {
+  background: var(--color-bg);
+  color: #1e2b3c;
+  border-color: var(--color-bg);
 }
 
 /* ─── Main layout ─── */

@@ -5,7 +5,8 @@ const express   = require('express');
 const cors      = require('cors');
 const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { Zubok } = require('./zubok');
+const { Zubok }  = require('./zubok');
+const { Schody } = require('./schody');
 
 const app  = express();
 const PORT = process.env.PORT || 3020;
@@ -44,22 +45,41 @@ app.use('/api/', apiLimiter);
 const DIST = path.join(__dirname, '..', 'client', 'dist');
 app.use(express.static(DIST));
 
-// ── Validátor parametrů ───────────────────────────────────────────
-const PARAM_RULES = {
-  nazev:          { type: 'string', maxLen: 128 },
-  tloustka_prkna: { min: 0.1,  max: 500  },
-  sirka_prkna:    { min: 1,    max: 2000 },
-  pocet_zubu:     { min: 1,    max: 500,  integer: true },
-  hloubka_zubu:   { min: 0.1,  max: 200  },
-  freza:          { min: 0.1,  max: 100  },
-  krok_vnoreni:   { min: 0.01, max: 50   },
-  drveni:         { min: -1,   max: 1    },
-  posuv:          { min: 1,    max: 10000 },
+// ── Generátory + validace parametrů ───────────────────────────────
+const GENERATORY = {
+  zubok: {
+    Klass: Zubok,
+    rules: {
+      nazev:          { type: 'string', maxLen: 128 },
+      tloustka_prkna: { min: 0.1,  max: 500  },
+      sirka_prkna:    { min: 1,    max: 2000 },
+      pocet_zubu:     { min: 1,    max: 500,  integer: true },
+      hloubka_zubu:   { min: 0.1,  max: 200  },
+      freza:          { min: 0.1,  max: 100  },
+      krok_vnoreni:   { min: 0.01, max: 50   },
+      drveni:         { min: -1,   max: 1    },
+      posuv:          { min: 1,    max: 10000 },
+    },
+  },
+  schody: {
+    Klass: Schody,
+    rules: {
+      nazev:          { type: 'string', maxLen: 128 },
+      tloustka_prkna: { min: 1,    max: 500  },
+      delka_spoje:    { min: 1,    max: 3000 },
+      pocet_schodu:   { min: 2,    max: 100,  integer: true },
+      freza:          { min: 0.1,  max: 100  },
+      krok_vnoreni:   { min: 0.01, max: 50   },
+      vule:           { min: -1,   max: 2    },
+      posuv:          { min: 1,    max: 10000 },
+      rozbeh:         { min: 0,    max: 60   },
+    },
+  },
 };
 
-function validateParams(body) {
+function validateParams(body, rules) {
   const errors = [];
-  for (const [key, rule] of Object.entries(PARAM_RULES)) {
+  for (const [key, rule] of Object.entries(rules)) {
     const val = body[key];
     if (val === undefined || val === '') {
       errors.push(`Chybí pole: ${key}`);
@@ -80,23 +100,27 @@ function validateParams(body) {
 }
 
 /**
- * POST /api/generate
+ * POST /api/generate/:typ  (zubok | schody)
+ * POST /api/generate       — zpětná kompatibilita, výchozí typ zubok
  */
-app.post('/api/generate', (req, res) => {
+function handleGenerate(typ, req, res) {
   try {
-    const config = req.body;
+    const gen = GENERATORY[typ];
+    if (!gen) {
+      return res.status(404).json({ error: `Neznámý typ generátoru: ${typ}` });
+    }
 
+    const config = req.body;
     if (!config || typeof config !== 'object' || Array.isArray(config)) {
       return res.status(400).json({ error: 'Neplatné tělo požadavku.' });
     }
 
-    const errors = validateParams(config);
+    const errors = validateParams(config, gen.rules);
     if (errors.length) {
       return res.status(400).json({ error: errors.join('; ') });
     }
 
-    const zubok  = new Zubok(config);
-    const result = zubok.generate();
+    const result = new gen.Klass(config).generate();
 
     res.json({
       fn:      result.fn,
@@ -110,7 +134,10 @@ app.post('/api/generate', (req, res) => {
     console.error(err);
     res.status(500).json({ error: 'Chyba při generování.' }); // neodesílat stack trace
   }
-});
+}
+
+app.post('/api/generate',      (req, res) => handleGenerate('zubok', req, res));
+app.post('/api/generate/:typ', (req, res) => handleGenerate(req.params.typ, req, res));
 
 /**
  * GET /api/health
