@@ -7,6 +7,7 @@ const helmet    = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { Zubok }  = require('./zubok');
 const { Schody } = require('./schody');
+const { Valec }  = require('./valec');
 
 const app  = express();
 const PORT = process.env.PORT || 3020;
@@ -75,6 +76,18 @@ const GENERATORY = {
       rozbeh:         { min: 0,    max: 60   },
     },
   },
+  valec: {
+    Klass: Valec,
+    rules: {
+      nazev:           { type: 'string', maxLen: 128 },
+      prumer_valce:    { min: 0.1,  max: 2000 },
+      hloubka_vnoreni: { min: 0.1,  max: 200  },
+      freza:           { min: 0.1,  max: 100  },
+      krok_vnoreni:    { min: 0.01, max: 50   },
+      posuv:           { min: 1,    max: 10000 },
+      rozbeh:          { min: 0,    max: 60   },
+    },
+  },
 };
 
 function validateParams(body, rules) {
@@ -100,7 +113,7 @@ function validateParams(body, rules) {
 }
 
 /**
- * POST /api/generate/:typ  (zubok | schody)
+ * POST /api/generate/:typ  (zubok | schody | valec)
  * POST /api/generate       — zpětná kompatibilita, výchozí typ zubok
  */
 function handleGenerate(typ, req, res) {
@@ -122,12 +135,13 @@ function handleGenerate(typ, req, res) {
 
     const result = new gen.Klass(config).generate();
 
+    // generátor s jediným programem (valec) varianta b nevrací — pole pak v JSON chybí
     res.json({
       fn:      result.fn,
       gcode_a: result.a.gcode,
-      gcode_b: result.b.gcode,
+      gcode_b: result.b?.gcode,
       paths_a: result.a.paths,
-      paths_b: result.b.paths,
+      paths_b: result.b?.paths,
       meta:    result.meta,
     });
   } catch (err) {

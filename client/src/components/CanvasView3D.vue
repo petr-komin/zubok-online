@@ -2,7 +2,7 @@
   <div class="viewer-wrap">
     <!-- Toolbar -->
     <div class="viewer-toolbar">
-      <div class="track-toggle">
+      <div v-if="maB" class="track-toggle">
         <button
           v-for="opt in trackOptions"
           :key="opt.value"
@@ -74,6 +74,9 @@ const trackOptions = [
   { value: 'b',    label: 'Dráha B', dotColor: '#60a5fa' },
   { value: 'both', label: 'Obě',     dotColor: '#a78bfa' },
 ];
+
+// Generátor s jediným programem (valec) dráhu B neposílá
+const maB = computed(() => props.pathsB.length > 0);
 
 // ── Aktuální dráha pro animaci (když je "both" → používá _a) ──────
 const currentPaths = computed(() =>
@@ -264,6 +267,23 @@ function rebuildBoard() {
   rMesh.position.set(0, 0.01, 0);
   boardGroup.add(rMesh);
 
+  // Válec, který po frézování zůstane (meta.valec — střed v nule, Z0 povrch)
+  const v = props.meta?.valec;
+  if (v?.r > 0 && v?.h > 0) {
+    const vGeo  = new THREE.CylinderGeometry(v.r, v.r, v.h, 64, 1, false);
+    const vMesh = new THREE.Mesh(vGeo, new THREE.MeshBasicMaterial({
+      color: COLOR_PROFIL_A, transparent: true, opacity: 0.22,
+      depthWrite: false, side: THREE.DoubleSide,
+    }));
+    vMesh.position.set(0, -v.h / 2, 0);
+    const vWire = new THREE.LineSegments(
+      new THREE.EdgesGeometry(vGeo, 10),   // jen horní a dolní obvod, ne každou stěnu
+      new THREE.LineBasicMaterial({ color: COLOR_PROFIL_A, transparent: true, opacity: 0.9 }),
+    );
+    vWire.position.copy(vMesh.position);
+    boardGroup.add(vMesh, vWire);
+  }
+
   scene.add(boardGroup);
 }
 
@@ -417,7 +437,7 @@ function applyVisibility() {
   if (lineA)     lineA.visible     = visibleTrack.value !== 'b';
   if (lineB)     lineB.visible     = visibleTrack.value !== 'a';
   if (drillMeshA) drillMeshA.visible = visibleTrack.value !== 'b';
-  if (drillMeshB) drillMeshB.visible = visibleTrack.value !== 'a';
+  if (drillMeshB) drillMeshB.visible = visibleTrack.value !== 'a' && maB.value;
 }
 
 function setTrack(val) {

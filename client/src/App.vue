@@ -38,9 +38,9 @@
             <template #extra-actions>
               <template v-if="result">
                 <button type="button" class="btn-secondary" @click="downloadA">
-                  &#8595; {{ result.fn }}_a.nc
+                  &#8595; {{ nazevA }}
                 </button>
-                <button type="button" class="btn-secondary" @click="downloadB">
+                <button v-if="result.gcode_b" type="button" class="btn-secondary" @click="downloadB">
                   &#8595; {{ result.fn }}_b.nc
                 </button>
               </template>
@@ -121,7 +121,12 @@ function downloadFile(content, filename) {
   URL.revokeObjectURL(url);
 }
 
-function downloadA() { result.value && downloadFile(result.value.gcode_a, `${result.value.fn}_a.nc`); }
+// generátor s jediným programem (valec) nemá variantu b, soubor je bez přípony _a
+const nazevA = computed(() =>
+  result.value?.gcode_b ? `${result.value.fn}_a.nc` : `${result.value?.fn}.nc`,
+);
+
+function downloadA() { result.value && downloadFile(result.value.gcode_a, nazevA.value); }
 function downloadB() { result.value && downloadFile(result.value.gcode_b, `${result.value.fn}_b.nc`); }
 
 function onYmlLoaded(parsed) {

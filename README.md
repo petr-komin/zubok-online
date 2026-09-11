@@ -7,6 +7,7 @@ Generátory se přepínají záložkami:
 |---------|------|
 | **Zubok** | box-joint (prstový spoj) — přepis původního Ruby skriptu |
 | **Schody** | schodový pokosový spoj — hrana zkosená po stupních místo roviny 45° |
+| **Válec** | kruhová drážka kolem středu — uprostřed zůstane válec |
 
 Node.js/Vue 3 stack s 3D vizualizací dráhy frézy.
 
@@ -19,6 +20,7 @@ Node.js/Vue 3 stack s 3D vizualizací dráhy frézy.
 - Zadání parametrů přes formulář, odvozené hodnoty se dopočítávají živě
 - Import parametrů z `.yml` souboru
 - Generování dvou G-code souborů (`_a.nc` a `_b.nc`) pro obě prkna spoje
+  (válec má jediný soubor)
 - 3D vizualizace dráhy frézy v reálném čase (Three.js)
 - Animace průjezdu frézy podél dráhy
 - Čelní pohled na řez spojem pro kontrolu výsledného tvaru
@@ -115,12 +117,39 @@ Program nejdřív roztočí vřeteno a počká na náběh otáček, pak schody o
 klikatým pohybem sem a tam po celé délce spoje. Zanořuje se vždy až za koncem
 materiálu, tedy ve vzduchu.
 
+## Parametry — Válec
+
+| Parametr | Popis |
+|----------|-------|
+| Název | Použije se jako název výstupního souboru |
+| Průměr válce | Válec, který zůstane uprostřed (mm) |
+| Hloubka vnoření | Hloubka drážky kolem válce (mm), výchozí 8 |
+| Průměr frézy | Průměr stopkové frézy (mm), výchozí 4 |
+| Velikost kroku | Hloubka záběru na jeden oběh (mm), výchozí 0,5 |
+| Rychlost posuvu | F v G-code (mm/min), výchozí 200 |
+| Rozběh vřetene | Čekání na náběh otáček (G04) před prvním řezem (s), výchozí 3 |
+
+**Nulování:** na rozdíl od zubok a schodů je nula ve **středu válce** (X0 Y0),
+Z0 je povrch. Střed frézy jede po kružnici o poloměru
+`průměr válce / 2 + poloměr frézy`, drážka je tedy široká jednu frézu.
+
+Program roztočí vřeteno, počká na náběh otáček a pak po vrstvách: v bodě
+(`Rc`, 0) se fréza zanoří o krok a objede celou kružnici (dva půloblouky G02,
+po směru hodin — sousledně vůči stěně válce). Poslední vrstva je vždy přesně
+na plné hloubce.
+
+**Odhadovaná doba** se ukazuje živě ve formuláři a je i v hlavičce G-code:
+rozběh vřetene + délka dráhy / posuv (rychloposuvy počítané s 1000 mm/min).
+Zrychlení a zpomalení stroje odhad nezahrnuje, skutečnost bývá o něco delší.
+
 ## Výstup
 
-Aplikace vygeneruje dva G-code soubory:
+Zubok a schody vygenerují dva G-code soubory:
 
 - `<nazev>_a.nc` — program pro první prkno
 - `<nazev>_b.nc` — program pro druhé prkno (protikus spoje)
+
+Válec vygeneruje jediný soubor `<nazev>.nc`.
 
 ## Struktura projektu
 
@@ -130,14 +159,16 @@ zubok-online/
 │   ├── index.js        # Express server, /api/generate/:typ, security middleware
 │   ├── util.js         # Sdílené pomocné funkce generátorů
 │   ├── zubok.js        # G-code generátor box-joint (přepis zubok.rb)
-│   └── schody.js       # G-code generátor schodového pokosu
+│   ├── schody.js       # G-code generátor schodového pokosu
+│   └── valec.js        # G-code generátor válce (kruhová drážka)
 ├── client/
 │   └── src/
 │       ├── App.vue                      # Layout, záložky generátorů, API volání
 │       ├── generators/                  # Definice polí a výchozích hodnot
 │       │   ├── index.js                 # Seznam generátorů = pořadí záložek
 │       │   ├── zubok.js
-│       │   └── schody.js
+│       │   ├── schody.js
+│       │   └── valec.js
 │       └── components/
 │           ├── ParamsForm.vue           # Obecný formulář řízený definicí polí
 │           ├── FileUpload.vue           # Import .yml souboru
@@ -155,8 +186,10 @@ zubok-online/
 
 1. `server/<typ>.js` — třída s metodou `generate()` vracející
    `{ fn, a: {gcode, paths}, b: {gcode, paths}, meta }`.
+   `b` je nepovinné — bez něj je výstupem jediný soubor `<nazev>.nc`.
    `meta.board` popisuje kvádr prkna pro 3D náhled, volitelné
-   `meta.profil_a` / `meta.profil_b` obrys řezu.
+   `meta.profil_a` / `meta.profil_b` obrys řezu, `meta.valec` (`{r, h}`)
+   válec se středem v nule.
 2. `server/index.js` — přidat záznam do `GENERATORY` (třída + validační pravidla).
 3. `client/src/generators/<typ>.js` — definice polí, výchozí hodnoty, `info()`.
 4. `client/src/generators/index.js` — zařadit do seznamu.
