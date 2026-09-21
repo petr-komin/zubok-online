@@ -60,6 +60,7 @@ const GENERATORY = {
       krok_vnoreni:   { min: 0.01, max: 50   },
       drveni:         { min: -1,   max: 1    },
       posuv:          { min: 1,    max: 10000 },
+      rozbeh:         { min: 0,    max: 60   },
     },
   },
   schody: {

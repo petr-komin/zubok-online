@@ -9,7 +9,6 @@ export default {
   key:      'schody',
   label:    'Schody',
   popis:    'schodový pokosový spoj',
-  endpoint: '/api/generate/schody',
 
   defaults: {
     nazev:          'schodovy spoj',

@@ -1,0 +1,17 @@
+# Nastavení nasazení — zkopírovat na deploy.conf a vyplnit.
+# deploy.conf je v .gitignore, do repozitáře se nedostane.
+
+# Cílový server
+SSH_HOST=zubok.example.cz
+SSH_USER=deploy
+
+# Kam na serveru patří obsah client/dist (musí sedět s root v deploy/nginx.conf)
+REMOTE_DIR=/var/www/zubok
+
+# Volitelné
+#SSH_PORT=22
+#SSH_KEY=~/.ssh/id_ed25519
+
+# Vlastník souborů na serveru. Nech prázdné, pokud SSH_USER do REMOTE_DIR
+# zapisuje přímo; jinak se po nahrání spustí vzdálené chown (chce sudo).
+#REMOTE_OWNER=www-data:www-data

@@ -8,8 +8,11 @@ Generátory se přepínají záložkami:
 | **Zubok** | box-joint (prstový spoj) — přepis původního Ruby skriptu |
 | **Schody** | schodový pokosový spoj — hrana zkosená po stupních místo roviny 45° |
 | **Válec** | kruhová drážka kolem středu — uprostřed zůstane válec |
+| **Proporce** | počítadlo rozměrů podle zlatého řezu a příbuzných poměrů (negeneruje G-code) |
 
-Node.js/Vue 3 stack s 3D vizualizací dráhy frézy.
+Statická Vue 3 aplikace s 3D vizualizací dráhy frézy. **Běží celá v prohlížeči** —
+G-code se počítá na klientovi, backend neexistuje. Hotový build je hromádka
+souborů, kterou obslouží libovolný webserver.
 
 ![screenshot](screenshot.png)
 ![Krabicky](krabicky.jpg)
@@ -30,30 +33,63 @@ Node.js/Vue 3 stack s 3D vizualizací dráhy frézy.
 
 | Vrstva | Stack |
 |--------|-------|
-| Backend | Node.js, Express 5 |
-| Frontend | Vue 3, Vite |
+| Aplikace | Vue 3, Vite |
+| Generátory G-code | čistý JavaScript, `client/src/core/` |
 | 3D vizualizace | Three.js, OrbitControls |
-| Bezpečnost | Helmet, express-rate-limit |
+| Hosting | nginx (statické soubory) |
+
+Node.js je potřeba jen k sestavení buildu. Na serveru už neběží nic.
 
 ## Spuštění
 
 ### Vývoj
 
 ```bash
-npm install
+npm install --prefix client
 npm run dev
 ```
 
-Frontend běží na `http://localhost:5173`, backend na `http://localhost:3000`.
+Aplikace běží na `http://localhost:5173`.
 
-### Produkce
+### Build
 
 ```bash
-npm run build
-npm start
+npm run build      # výsledek v client/dist/
+npm run preview    # kontrola buildu lokálně
 ```
 
-Aplikace běží na `http://localhost:3000` (Express servíruje i statické soubory).
+## Nasazení
+
+Na serveru stačí nginx, žádný Node proces.
+
+**Jednorázově** — nastavit vhost (doménu a `root` doplnit v souboru):
+
+```bash
+sudo cp deploy/nginx.conf /etc/nginx/sites-available/zubok
+sudo ln -s /etc/nginx/sites-available/zubok /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d zubok.example.cz     # HTTPS
+```
+
+**Při každém nasazení:**
+
+```bash
+cp deploy.conf.example deploy.conf   # jen poprvé — vyplnit server a cestu
+npm run deploy
+```
+
+`deploy.sh` sestaví build a nahraje `client/dist` přes rsync/ssh. Nahrává ve
+dvou průchodech — nejdřív aktiva, pak `index.html` a úklid starých souborů —
+takže návštěvník, který si stránku načte uprostřed nasazení, nenarazí na
+chybějící JavaScript. Přepínače:
+
+| Přepínač | Co dělá |
+|----------|---------|
+| `--dry-run` | ukáže, co by se přeneslo, na server nezapíše |
+| `--no-build` | nasadí už existující `client/dist` |
+
+`deploy.conf` je v `.gitignore`. Vyžaduje ssh klíč — skript běží v `BatchMode`,
+takže se na heslo neptá.
 
 ## Parametry — Zubok
 
@@ -142,6 +178,61 @@ na plné hloubce.
 rozběh vřetene + délka dráhy / posuv (rychloposuvy počítané s 1000 mm/min).
 Zrychlení a zpomalení stroje odhad nezahrnuje, skutečnost bývá o něco delší.
 
+## Záložka Proporce
+
+Počítadlo rozměrů, ne generátor — nevzniká z něj G-code. Zadáš jeden rozměr
+a ostatní dva se dopočítají podle zvoleného poměru. Tři způsoby:
+
+### Řada mocnin
+
+Rozměry tvoří geometrickou řadu `a : a·r : a·r²`. U každého rozměru se dá
+mocnina nastavit zvlášť — pro podlouhlou krabičku dáš delší straně mocninu 3
+místo 2 a vznikne poměr φ³ (1 : 4,24) místo φ² (1 : 2,62).
+
+### Střed (Alberti)
+
+Třetí rozměr je pythagorejský střed dvou zbylých. Leon Battista Alberti
+v *De re aedificatoria* (1452) takhle odvozuje výšku místnosti z délky a šířky,
+Palladio to v *Quattro libri* (1570) používá stejně:
+
+| Střed | Vzorec | Tvar |
+|-------|--------|------|
+| Aritmetický | `(a + c) / 2` | nejvyšší ze tří |
+| Geometrický | `√(a · c)` | stejný poměr k oběma stranám |
+| Harmonický | `2ac / (a + c)` | nejpodsaditější |
+
+### Fibonacci
+
+Celá čísla, jejichž podíl se blíží zlatému řezu. Vybíráš, které členy řady
+vezmeš — čím dál v řadě, tím přesnější:
+
+| Dvojice | Podíl | Odchylka od φ |
+|---------|-------|---------------|
+| 2 : 3 | 1,500 | −7,3 % |
+| 3 : 5 | 1,667 | +3,0 % |
+| 5 : 8 | 1,600 | −1,1 % |
+| 8 : 13 | 1,625 | +0,4 % |
+| 13 : 21 | 1,615 | −0,2 % |
+| 21 : 34 | 1,619 | +0,06 % |
+
+Řada konverguje k φ z **jakékoliv** počáteční dvojice, takže se dá začít
+vlastními kulatými čísly (30, 50 → 80, 130, 210, 340) a rozměry zůstanou
+odměřitelné metrem.
+
+### Proporční systémy
+
+| Systém | Poměr | Původ |
+|--------|-------|-------|
+| Zlatý řez (φ) | 1 : 1,618 | Eukleidés; Fibonacci 1202, Pacioli 1509. Ve středověkém stavitelství doložený hůř, než se tvrdí |
+| Ad quadratum (√2) | 1 : 1,414 | Úhlopříčka čtverce. Nejrozšířenější doopravdy středověký postup — stačí provázek |
+| Ad triangulum (√3) | 1 : 1,732 | Rovnostranný trojúhelník. Spor o stavbu milánského dómu 1392 |
+| Odmocnina z 5 | 1 : 2,236 | Úhlopříčka dvojčtverce; √5 = 2φ − 1 |
+| Oktáva | 1 : 2 | Hudební poměry — Boëthius předal středověku pythagorejskou nauku |
+| Kvinta | 2 : 3 | Z Albertiho a Palladiova seznamu |
+| Kvarta | 3 : 4 | Nejkrotší, blízko čtverci |
+| Sexta | 3 : 5 | Celočíselná náhrada φ, liší se o 3 % |
+| Plastické číslo (ψ) | 1 : 1,325 | Dom Hans van der Laan, benediktin, 1928–1960. Kořen `x³ = x + 1`. Na malé předměty sedí líp než φ — řada roste pomaleji |
+
 ## Výstup
 
 Zubok a schody vygenerují dva G-code soubory:
@@ -155,24 +246,34 @@ Válec vygeneruje jediný soubor `<nazev>.nc`.
 
 ```
 zubok-online/
-├── server/
-│   ├── index.js        # Express server, /api/generate/:typ, security middleware
-│   ├── util.js         # Sdílené pomocné funkce generátorů
-│   ├── zubok.js        # G-code generátor box-joint (přepis zubok.rb)
-│   ├── schody.js       # G-code generátor schodového pokosu
-│   └── valec.js        # G-code generátor válce (kruhová drážka)
 ├── client/
+│   ├── vite.config.js
 │   └── src/
-│       ├── App.vue                      # Layout, záložky generátorů, API volání
+│       ├── App.vue                      # Layout, záložky, volání generátorů
+│       ├── core/                        # Výpočetní jádro — čistý JS, bez Vue
+│       │   ├── generuj.js               # Vstupní bod: typ + parametry → G-code
+│       │   ├── validace.js              # Rozsahy parametrů
+│       │   ├── util.js                  # Sdílené pomocné funkce
+│       │   ├── zubok.js                 # Generátor box-joint (přepis zubok.rb)
+│       │   ├── schody.js                # Generátor schodového pokosu
+│       │   ├── valec.js                 # Generátor válce (kruhová drážka)
+│       │   └── proporce.js              # Proporční systémy a Fibonacci
 │       ├── generators/                  # Definice polí a výchozích hodnot
-│       │   ├── index.js                 # Seznam generátorů = pořadí záložek
+│       │   ├── index.js                 # Seznam záložek = jejich pořadí
 │       │   ├── zubok.js
 │       │   ├── schody.js
-│       │   └── valec.js
+│       │   ├── valec.js
+│       │   └── proporce.js              # Nástroj bez G-code (příznak `nastroj`)
+│       ├── utils/doba.js
 │       └── components/
 │           ├── ParamsForm.vue           # Obecný formulář řízený definicí polí
 │           ├── FileUpload.vue           # Import .yml souboru
-│           └── CanvasView3D.vue         # Three.js 3D vizualizace
+│           ├── CanvasView3D.vue         # Three.js 3D vizualizace
+│           └── Proporce.vue             # Počítadlo proporcí
+├── deploy/nginx.conf                    # Vhost pro produkci
+├── deploy.sh                            # Build + rsync na server
+├── deploy.conf.example                  # Vzor nastavení nasazení
+├── server/                              # Bývalý Express backend — už se nepoužívá
 └── examples/
     ├── zubky/
     │   ├── zubok.rb    # Původní Ruby skript (reference)
@@ -184,17 +285,22 @@ zubok-online/
 
 ## Přidání dalšího generátoru
 
-1. `server/<typ>.js` — třída s metodou `generate()` vracející
+1. `client/src/core/<typ>.js` — třída s metodou `generate()` vracející
    `{ fn, a: {gcode, paths}, b: {gcode, paths}, meta }`.
    `b` je nepovinné — bez něj je výstupem jediný soubor `<nazev>.nc`.
    `meta.board` popisuje kvádr prkna pro 3D náhled, volitelné
    `meta.profil_a` / `meta.profil_b` obrys řezu, `meta.valec` (`{r, h}`)
    válec se středem v nule.
-2. `server/index.js` — přidat záznam do `GENERATORY` (třída + validační pravidla).
-3. `client/src/generators/<typ>.js` — definice polí, výchozí hodnoty, `info()`.
-4. `client/src/generators/index.js` — zařadit do seznamu.
+2. `client/src/core/generuj.js` — zaregistrovat třídu v `KLASY`.
+3. `client/src/core/validace.js` — přidat rozsahy do `PRAVIDLA`.
+4. `client/src/generators/<typ>.js` — definice polí, výchozí hodnoty, `info()`.
+5. `client/src/generators/index.js` — zařadit do seznamu.
 
 Formulář i 3D náhled se pak vygenerují samy.
+
+Záložka, která negeneruje G-code, potřebuje jen konfiguraci s příznakem
+`nastroj: true` a vlastní komponentu — viz `generators/proporce.js`
+a `components/Proporce.vue`.
 
 ## Licence
 
@@ -202,4 +308,11 @@ MIT
 
 ## Plány do budoucna
 
-- **Ukládání projektů do databáze** — parametry i vygenerované G-code soubory budou ukládány na serveru, což umožní historii projektů, sdílení a opětovné načtení. Toto je hlavní důvod pro zvolenou client-server architekturu.
+- **Ukládání projektů do databáze** — parametry i vygenerované soubory na serveru,
+  kvůli historii projektů, sdílení a opětovnému načtení.
+
+  Pozn.: tohle byl původní důvod pro client-server architekturu. Aplikace je teď
+  statická a generátory běží v prohlížeči. Až na ukládání dojde, nemusí se to vracet
+  zpátky — stačí přidat úzké API jen pro perzistenci (generování zůstane na klientovi)
+  a v `deploy/nginx.conf` doplnit `location /api/ { proxy_pass … }`. Bývalý Express
+  server zůstal ve složce `server/` jako výchozí bod.

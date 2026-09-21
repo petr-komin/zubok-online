@@ -5,7 +5,6 @@ export default {
   key:      'zubok',
   label:    'Zubok',
   popis:    'box-joint (prstový spoj)',
-  endpoint: '/api/generate/zubok',
 
   defaults: {
     nazev:          'jasanova krabicka',
@@ -17,6 +16,7 @@ export default {
     krok_vnoreni:   1,
     drveni:         0,
     posuv:          300,
+    rozbeh:         3,
   },
 
   fields: [
@@ -96,6 +96,16 @@ export default {
       min: 1,
       placeholder: '300',
       hint: 'Posuv frézy (F v G-code)',
+    },
+    {
+      key: 'rozbeh',
+      label: 'Rozběh vřetene',
+      unit: 's',
+      step: 0.5,
+      min: 0,
+      max: 60,
+      placeholder: '3',
+      hint: 'Čekání na náběh otáček (G04) před prvním řezem',
     },
   ],
 

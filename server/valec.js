@@ -31,11 +31,10 @@
 
 'use strict';
 
-const { sanitizeFilename, fmt } = require('./util');
+const { sanitizeFilename, fmt, formatDoba, RYCHLOPOSUV } = require('./util');
 
 const SAFE_Z       = 4;    // bezpečná výška nad povrchem (mm)
 const NAJETI_Z     = 0.5;  // odkud se rychloposuvem sjede před prvním zanořením (mm)
-const RYCHLOPOSUV  = 1000; // předpokládaná rychlost G00 pro odhad doby (mm/min)
 const SEGMENTY_3D  = 48;   // počet úseček na kružnici v 3D náhledu
 const OKRAJ_3D     = 5;    // přesah kvádru materiálu za drážku v náhledu (mm)
 const EPS          = 1e-9;
@@ -208,17 +207,6 @@ class Valec {
       this._move(rc * Math.cos(u), rc * Math.sin(u), z, false);
     }
   }
-}
-
-/** 219 → "3 min 39 s", 3900 → "1 h 5 min" (bez diakritiky — jde do G-code) */
-function formatDoba(s) {
-  const celk = Math.round(s);
-  const h    = Math.floor(celk / 3600);
-  const min  = Math.floor((celk % 3600) / 60);
-  const sek  = celk % 60;
-  if (h)   return `${h} h ${min} min`;
-  if (min) return `${min} min ${sek} s`;
-  return `${sek} s`;
 }
 
 module.exports = { Valec };

@@ -4,11 +4,12 @@
  * Kolem středu (nula X0 Y0) se vyfrézuje kruhová drážka do dané hloubky,
  * uprostřed zůstane válec. Výstupem je jediný G-code soubor.
  */
+import { formatDoba } from '../utils/doba.js';
+
 export default {
   key:      'valec',
   label:    'Válec',
   popis:    'válec uprostřed, drážka kolem',
-  endpoint: '/api/generate/valec',
 
   defaults: {
     nazev:           'valec',
@@ -130,12 +131,3 @@ function odhadDoby(rc, h, vrstev, posuv, rozbeh) {
   return rozbeh + (rez / posuv + rychle / RYCHLOPOSUV) * 60;
 }
 
-function formatDoba(s) {
-  const celk = Math.round(s);
-  const h    = Math.floor(celk / 3600);
-  const min  = Math.floor((celk % 3600) / 60);
-  const sek  = celk % 60;
-  if (h)   return `${h} h ${min} min`;
-  if (min) return `${min} min ${sek} s`;
-  return `${sek} s`;
-}
