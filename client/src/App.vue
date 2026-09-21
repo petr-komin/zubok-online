@@ -17,7 +17,15 @@
       </nav>
     </header>
 
-    <main class="app-main" :class="{ 'has-result': !!result }">
+    <main class="app-main" :class="{ 'has-result': !!result && !gen.nastroj }">
+      <!-- Nástroj bez G-code — vlastní obsah přes celou šířku -->
+      <section v-if="gen.nastroj" class="panel panel-nastroj">
+        <div class="card">
+          <Proporce />
+        </div>
+      </section>
+
+      <template v-else>
       <!-- Levý sloupec: parametry -->
       <section class="panel panel-form">
         <div class="card">
@@ -47,6 +55,11 @@
             </template>
           </ParamsForm>
 
+          <div v-if="dobaText" class="doba-msg">
+            Odhadovaná doba frézování: <strong>{{ dobaText }}</strong>
+            <small>bez zrychlení stroje, skutečnost bude o něco delší</small>
+          </div>
+
           <div v-if="apiError" class="error-msg">
             Chyba: {{ apiError }}
           </div>
@@ -66,6 +79,7 @@
           <span>Vyplňte parametry a klikněte na <strong>Generovat G-code</strong></span>
         </div>
       </section>
+      </template>
     </main>
 
     <footer class="app-footer">
@@ -76,11 +90,13 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue';
-import axios from 'axios';
 import ParamsForm    from './components/ParamsForm.vue';
 import FileUpload    from './components/FileUpload.vue';
 import CanvasView3D  from './components/CanvasView3D.vue';
+import Proporce      from './components/Proporce.vue';
 import { GENERATORY } from './generators';
+import { generuj, ChybaParametru } from './core/generuj.js';
+import { formatDoba } from './utils/doba.js';
 
 const gen     = ref(GENERATORY[0]);
 const loading = ref(false);
@@ -94,20 +110,35 @@ const stav = reactive(
 const result   = computed(() => stav[gen.value.key].result);
 const apiError = computed(() => stav[gen.value.key].error);
 
+// Odhad z vygenerované dráhy — u dvou programů (a, b) se ukáže doba obou
+const dobaText = computed(() => {
+  const m = result.value?.meta;
+  if (!m) return '';
+  if (m.doba_a_s != null && m.doba_b_s != null) {
+    return `${formatDoba(m.doba_a_s)} + ${formatDoba(m.doba_b_s)}`;
+  }
+  return m.doba_s != null ? formatDoba(m.doba_s) : '';
+});
+
 function prepni(g) {
   gen.value = g;
 }
 
-async function generate(formParams) {
+function generate(formParams) {
   const s = stav[gen.value.key];
   loading.value = true;
   s.error  = '';
   s.result = null;
   try {
-    const { data } = await axios.post(gen.value.endpoint, formParams);
-    s.result = data;
+    s.result = generuj(gen.value.key, formParams);
   } catch (err) {
-    s.error = err.response?.data?.error ?? err.message;
+    // chyba parametru ma hlasku pro uzivatele, cokoliv jineho je chyba v kodu
+    if (err instanceof ChybaParametru) {
+      s.error = err.message;
+    } else {
+      console.error(err);
+      s.error = 'Chyba při generování.';
+    }
   } finally {
     loading.value = false;
   }
@@ -237,6 +268,15 @@ body { min-height: 100vh; }
   transition: flex 0.3s, max-width 0.3s;
 }
 
+.panel-nastroj {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  max-width: 1100px;
+  margin: 0 auto;
+  width: 100%;
+}
+
 .panel-viewer {
   display: none;
   flex: 1;
@@ -280,6 +320,21 @@ body { min-height: 100vh; }
   font-size: 1rem;
   font-weight: 700;
   color: #1e2b3c;
+}
+
+.doba-msg {
+  padding: 0.65rem 0.9rem;
+  background: #eef5ff;
+  border: 1px solid #c3d9f5;
+  border-radius: 6px;
+  color: #1e2b3c;
+  font-size: 0.88rem;
+}
+
+.doba-msg small {
+  display: block;
+  margin-top: 0.15rem;
+  opacity: 0.65;
 }
 
 .error-msg {
