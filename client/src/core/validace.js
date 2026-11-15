@@ -39,6 +39,15 @@ export const PRAVIDLA = {
     posuv:           { min: 1,    max: 10000 },
     rozbeh:          { min: 0,    max: 60   },
   },
+  dira: {
+    nazev:           { type: 'string', maxLen: 128 },
+    prumer_diry:     { min: 0.2,  max: 2000 },
+    hloubka_vnoreni: { min: 0.1,  max: 200  },
+    freza:           { min: 0.1,  max: 100  },
+    krok_vnoreni:    { min: 0.01, max: 50   },
+    posuv:           { min: 1,    max: 10000 },
+    rozbeh:          { min: 0,    max: 60   },
+  },
 };
 
 /**

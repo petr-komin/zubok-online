@@ -32,7 +32,7 @@
 
 import { sanitizeFilename, fmt, formatDoba, RYCHLOPOSUV } from './util.js';
 
-const SAFE_Z       = 4;    // bezpečná výška nad povrchem (mm)
+export const SAFE_Z = 4;          // bezpečná výška nad povrchem (mm)
 const NAJETI_Z     = 0.5;  // odkud se rychloposuvem sjede před prvním zanořením (mm)
 const SEGMENTY_3D  = 48;   // počet úseček na kružnici v 3D náhledu
 const OKRAJ_3D     = 5;    // přesah kvádru materiálu za drážku v náhledu (mm)

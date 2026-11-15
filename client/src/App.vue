@@ -152,7 +152,7 @@ function downloadFile(content, filename) {
   URL.revokeObjectURL(url);
 }
 
-// generátor s jediným programem (valec) nemá variantu b, soubor je bez přípony _a
+// generátor s jediným programem (valec, dira) nemá variantu b, soubor je bez přípony _a
 const nazevA = computed(() =>
   result.value?.gcode_b ? `${result.value.fn}_a.nc` : `${result.value?.fn}.nc`,
 );

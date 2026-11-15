@@ -8,6 +8,7 @@ Generátory se přepínají záložkami:
 | **Zubok** | box-joint (prstový spoj) — přepis původního Ruby skriptu |
 | **Schody** | schodový pokosový spoj — hrana zkosená po stupních místo roviny 45° |
 | **Válec** | kruhová drážka kolem středu — uprostřed zůstane válec |
+| **Díra** | kruhová drážka uvnitř — vznikne díra zadaného průměru, střed je odpad |
 | **Proporce** | počítadlo rozměrů podle zlatého řezu a příbuzných poměrů (negeneruje G-code) |
 
 Statická Vue 3 aplikace s 3D vizualizací dráhy frézy. **Běží celá v prohlížeči** —
@@ -23,7 +24,7 @@ souborů, kterou obslouží libovolný webserver.
 - Zadání parametrů přes formulář, odvozené hodnoty se dopočítávají živě
 - Import parametrů z `.yml` souboru
 - Generování dvou G-code souborů (`_a.nc` a `_b.nc`) pro obě prkna spoje
-  (válec má jediný soubor)
+  (válec a díra mají jediný soubor)
 - 3D vizualizace dráhy frézy v reálném čase (Three.js)
 - Animace průjezdu frézy podél dráhy
 - Čelní pohled na řez spojem pro kontrolu výsledného tvaru
@@ -178,6 +179,17 @@ na plné hloubce.
 rozběh vřetene + délka dráhy / posuv (rychloposuvy počítané s 1000 mm/min).
 Zrychlení a zpomalení stroje odhad nezahrnuje, skutečnost bývá o něco delší.
 
+## Parametry — Díra
+
+Stejná pole jako u válce, jen místo průměru válce se zadává **Průměr díry**
+(výsledný, výchozí 20 mm). Musí být větší než průměr frézy.
+
+Nula je ve **středu díry** (X0 Y0), Z0 je povrch. Střed frézy jede po
+kružnici o poloměru `průměr díry / 2 − poloměr frézy`; vnější stěna drážky
+je hotová díra, špunt uprostřed je odpad. Oběh je G03 (proti směru hodin) —
+na vnitřní stěně díry je to sousledné frézování. U průchozí díry se špunt
+v poslední vrstvě uvolní — je dobré ho přichytit nebo hlídat.
+
 ## Záložka Proporce
 
 Počítadlo rozměrů, ne generátor — nevzniká z něj G-code. Zadáš jeden rozměr
@@ -240,7 +252,7 @@ Zubok a schody vygenerují dva G-code soubory:
 - `<nazev>_a.nc` — program pro první prkno
 - `<nazev>_b.nc` — program pro druhé prkno (protikus spoje)
 
-Válec vygeneruje jediný soubor `<nazev>.nc`.
+Válec a díra vygenerují jediný soubor `<nazev>.nc`.
 
 ## Struktura projektu
 
@@ -257,12 +269,14 @@ zubok-online/
 │       │   ├── zubok.js                 # Generátor box-joint (přepis zubok.rb)
 │       │   ├── schody.js                # Generátor schodového pokosu
 │       │   ├── valec.js                 # Generátor válce (kruhová drážka)
+│       │   ├── dira.js                  # Generátor díry (dědí z valec.js)
 │       │   └── proporce.js              # Proporční systémy a Fibonacci
 │       ├── generators/                  # Definice polí a výchozích hodnot
 │       │   ├── index.js                 # Seznam záložek = jejich pořadí
 │       │   ├── zubok.js
 │       │   ├── schody.js
 │       │   ├── valec.js
+│       │   ├── dira.js
 │       │   └── proporce.js              # Nástroj bez G-code (příznak `nastroj`)
 │       ├── utils/doba.js
 │       └── components/
@@ -290,7 +304,9 @@ zubok-online/
    `b` je nepovinné — bez něj je výstupem jediný soubor `<nazev>.nc`.
    `meta.board` popisuje kvádr prkna pro 3D náhled, volitelné
    `meta.profil_a` / `meta.profil_b` obrys řezu, `meta.valec` (`{r, h}`)
-   válec se středem v nule.
+   válec se středem v nule, `meta.dira` (`{r, odpad, h}`) díra a odpad.
+   Statická metoda `kontrola(params)` může vrátit chyby, které nejdou
+   vyjádřit rozsahem jednoho pole.
 2. `client/src/core/generuj.js` — zaregistrovat třídu v `KLASY`.
 3. `client/src/core/validace.js` — přidat rozsahy do `PRAVIDLA`.
 4. `client/src/generators/<typ>.js` — definice polí, výchozí hodnoty, `info()`.

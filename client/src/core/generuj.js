@@ -8,15 +8,16 @@
 import { Zubok }  from './zubok.js';
 import { Schody } from './schody.js';
 import { Valec }  from './valec.js';
+import { Dira }   from './dira.js';
 import { PRAVIDLA, validuj } from './validace.js';
 
-const KLASY = { zubok: Zubok, schody: Schody, valec: Valec };
+const KLASY = { zubok: Zubok, schody: Schody, valec: Valec, dira: Dira };
 
 /** Chyba s hláškou určenou uživateli (dřív přicházela jako 400 z API) */
 export class ChybaParametru extends Error {}
 
 /**
- * @param {'zubok'|'schody'|'valec'} typ
+ * @param {'zubok'|'schody'|'valec'|'dira'} typ
  * @param {object} params  hodnoty z formuláře
  * @returns {{fn:string, gcode_a:string, gcode_b?:string, paths_a:Array, paths_b?:Array, meta:object}}
  */
@@ -29,11 +30,12 @@ export function generuj(typ, params) {
   }
 
   const errors = validuj(params, PRAVIDLA[typ]);
+  if (!errors.length && Klass.kontrola) errors.push(...Klass.kontrola(params));
   if (errors.length) throw new ChybaParametru(errors.join('; '));
 
   const result = new Klass(params).generate();
 
-  // generátor s jediným programem (valec) variantu b nevrací
+  // generátor s jediným programem (valec, dira) variantu b nevrací
   return {
     fn:      result.fn,
     gcode_a: result.a.gcode,

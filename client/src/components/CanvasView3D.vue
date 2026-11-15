@@ -68,6 +68,7 @@ const FOV_CELO = 12;   // čelní pohled na řez — skoro ortogonální
 
 const COLOR_PROFIL_A = 0x4ade80;
 const COLOR_PROFIL_B = 0xe879f9;
+const COLOR_ODPAD    = 0x9ca3af;
 
 const trackOptions = [
   { value: 'a',    label: 'Dráha A', dotColor: '#f59e0b' },
@@ -75,7 +76,7 @@ const trackOptions = [
   { value: 'both', label: 'Obě',     dotColor: '#a78bfa' },
 ];
 
-// Generátor s jediným programem (valec) dráhu B neposílá
+// Generátor s jediným programem (valec, dira) dráhu B neposílá
 const maB = computed(() => props.pathsB.length > 0);
 
 // ── Aktuální dráha pro animaci (když je "both" → používá _a) ──────
@@ -269,22 +270,32 @@ function rebuildBoard() {
 
   // Válec, který po frézování zůstane (meta.valec — střed v nule, Z0 povrch)
   const v = props.meta?.valec;
-  if (v?.r > 0 && v?.h > 0) {
-    const vGeo  = new THREE.CylinderGeometry(v.r, v.r, v.h, 64, 1, false);
-    const vMesh = new THREE.Mesh(vGeo, new THREE.MeshBasicMaterial({
-      color: COLOR_PROFIL_A, transparent: true, opacity: 0.22,
-      depthWrite: false, side: THREE.DoubleSide,
-    }));
-    vMesh.position.set(0, -v.h / 2, 0);
-    const vWire = new THREE.LineSegments(
-      new THREE.EdgesGeometry(vGeo, 10),   // jen horní a dolní obvod, ne každou stěnu
-      new THREE.LineBasicMaterial({ color: COLOR_PROFIL_A, transparent: true, opacity: 0.9 }),
-    );
-    vWire.position.copy(vMesh.position);
-    boardGroup.add(vMesh, vWire);
+  if (v?.r > 0 && v?.h > 0) boardGroup.add(...valecMesh(v.r, v.h, COLOR_PROFIL_A, 0.22));
+
+  // Díra (meta.dira): zelený obvod hotové díry, šedý špunt odpadu uprostřed
+  const d = props.meta?.dira;
+  if (d?.r > 0 && d?.h > 0) {
+    boardGroup.add(...valecMesh(d.r, d.h, COLOR_PROFIL_A, 0));
+    if (d.odpad > 0) boardGroup.add(...valecMesh(d.odpad, d.h, COLOR_ODPAD, 0.25));
   }
 
   scene.add(boardGroup);
+}
+
+/** Průhledný válec se středem v nule, horní podstava v Z0; opacity 0 = jen obvody */
+function valecMesh(r, h, color, opacity) {
+  const geo  = new THREE.CylinderGeometry(r, r, h, 64, 1, false);
+  const wire = new THREE.LineSegments(
+    new THREE.EdgesGeometry(geo, 10),   // jen horní a dolní obvod, ne každou stěnu
+    new THREE.LineBasicMaterial({ color, transparent: true, opacity: 0.9 }),
+  );
+  wire.position.set(0, -h / 2, 0);
+  if (!opacity) return [wire];
+  const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
+    color, transparent: true, opacity, depthWrite: false, side: THREE.DoubleSide,
+  }));
+  mesh.position.copy(wire.position);
+  return [mesh, wire];
 }
 
 // ── Dráhy frézy ───────────────────────────────────────────────────
